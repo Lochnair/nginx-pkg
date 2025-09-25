@@ -5,6 +5,10 @@ on:
     - cron: "23 2 */2 * *"   # check every 30 minutes
   workflow_dispatch: {}
 
+concurrency:
+  group: watch-nginx
+  cancel-in-progress: false
+
 permissions:
   contents: write   # for git-auto-commit to push
 
