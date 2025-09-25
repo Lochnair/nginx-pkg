@@ -165,7 +165,7 @@ jobs:
 
           # Collect .deb artifacts
           mkdir -p ../../out
-          find . -mindepth 1 -maxdepth 1 -name "*.deb" -print -exec cp -v {} ../../out/ \;
+          find . -mindepth 1 -name "*.deb" -print -exec cp -v {} ../../out/ \;
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
