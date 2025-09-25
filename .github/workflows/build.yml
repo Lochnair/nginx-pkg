@@ -4,8 +4,7 @@ name: Build NGINX packages
 on:
   push:
     paths:
-      - ".meta/nginx-stable.txt"
-      - ".meta/nginx-mainline.txt"
+      - ".meta/**"
   workflow_dispatch:
     inputs:
       flavor:
