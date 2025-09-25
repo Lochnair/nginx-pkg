@@ -172,74 +172,78 @@ jobs:
           name: nginx-${{ env.FLAVOR }}-${{ steps.ver.outputs.tag }}-${{ matrix.distro }}
           path: out/
           if-no-files-found: error
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      FLAVOR: ${{ needs.build.outputs.FLAVOR || env.FLAVOR }}
-      TAGVAL:  ${{ needs.build.outputs.tag || steps.resolve.outputs.tag }}
-    steps:
-      - name: Resolve flavor/tag from prior jobs
-        id: resolve
-        run: |
-          # Prefer env set in the workflow; fall back to parsing the first artifact name
-          echo "tag=${{ needs.build.steps.tag.outputs.tag || '' }}" >> "$GITHUB_OUTPUT"
-          echo "flavor=${{ env.FLAVOR }}" >> "$GITHUB_OUTPUT"
+release:
+  needs: build
+  runs-on: ubuntu-latest
+  permissions:
+    contents: write
 
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          # No name filter so we fetch every distro artifact produced in the matrix
-          path: dist
+  steps:
+    - name: Download all build artifacts
+    # This grabs every artifact from all matrix rows into ./dist/<artifact-name>
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
 
-      - name: Gather .deb files
-        id: gather
-        shell: bash
-        run: |
-          shopt -s globstar nullglob
-          count=$(ls dist/**/*.deb 2>/dev/null | wc -l || true)
-          if [ "$count" -eq 0 ]; then
-            echo "No .deb artifacts found. Did the build step upload them?"
-            exit 1
-          fi
-          echo "Found $count debs."
-          # Produce a checksum file
-          (cd dist && find . -type f -name '*.deb' -print0 | xargs -0 sha256sum) > dist/SHA256SUMS
-          echo "files=true" >> "$GITHUB_OUTPUT"
+    - name: Resolve flavor and tag from artifact names
+      id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Expect artifact dirs like: nginx-<flavor>-<tag>-<distro>
+        first_dir=$(find dist -mindepth 1 -maxdepth 1 -type d | head -n1)
+        [ -n "$first_dir" ] || { echo "No artifacts found"; exit 1; }
 
-      - name: Install gh (already on runner, but verify)
-        run: gh --version
+        base=$(basename "$first_dir")
+        # Split on '-' with flavor in field 2 and tag in field 3
+        # Example: nginx-stable-1.28.1-1-debian-12
+        IFS='-' read -r _ flavor tag_rest <<<"$base"
+        # tag_rest may contain additional dashes if your tag ever grows; handle safely:
+        # cut the last two dash-separated fields for distro name and version, whatever you used.
+        # Here we assume tag is exactly one dash (e.g. 1.28.1-1). Adjust if you change naming.
+        tag=$(echo "$base" | sed -E 's/^nginx-[^-]+-([0-9]+\.[0-9]+\.[0-9]+-[0-9]+)-.*/\1/')
 
-      - name: Create or update GitHub Release
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          FLAVOR="${{ steps.resolve.outputs.flavor }}"
-          TAG="${{ steps.resolve.outputs.tag }}"
-          if [ -z "$TAG" ]; then
-            echo "No tag resolved from build jobs."
-            exit 1
-          fi
-          RELTAG="nginx-${FLAVOR}-${TAG}"
-          TITLE="NGINX ${FLAVOR} ${TAG}"
+        if [ -z "$tag" ] || [ -z "$flavor" ]; then
+          echo "Could not parse flavor/tag from $base"
+          exit 1
+        fi
 
-          # Create release if missing (will fail if exists)
-          if ! gh release view "$RELTAG" >/dev/null 2>&1; then
-            NOTES=$(cat <<EOF
-            Packages for ${TITLE}
-            
-            - Upstream packaging: nginx/pkg-oss @ ${TAG}
-            - Flavor: ${FLAVOR}
-            
-            Artifacts include .deb packages for all built distros plus SHA256SUMS.
-            EOF
-            )
-            gh release create "$RELTAG" --title "$TITLE" --notes "$NOTES"
-          fi
+        echo "flavor=$flavor" >> "$GITHUB_OUTPUT"
+        echo "tag=$tag"       >> "$GITHUB_OUTPUT"
+        echo "Flavor=$flavor  Tag=$tag"
 
-          # Upload all artifacts, clobber on rerun
-          gh release upload "$RELTAG" dist/**/*.deb dist/SHA256SUMS --clobber
+    - name: Gather .deb files and checksums
+      id: gather
+      shell: bash
+      run: |
+        shopt -s globstar nullglob
+        count=$(ls dist/**/*.deb 2>/dev/null | wc -l || true)
+        [ "$count" -gt 0 ] || { echo "No .deb files found"; exit 1; }
+        (cd dist && find . -type f -name '*.deb' -print0 | xargs -0 sha256sum) > dist/SHA256SUMS
+        echo "files=true" >> "$GITHUB_OUTPUT"
+
+    - name: Create or update GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        flavor="${{ steps.resolve.outputs.flavor }}"
+        tag="${{ steps.resolve.outputs.tag }}"
+        reltag="nginx-${flavor}-${tag}"
+        title="NGINX ${flavor} ${tag}"
+
+        if ! gh release view "$reltag" >/dev/null 2>&1; then
+          notes=$(cat <<EOF
+        Packages for ${title}
+        
+        - Upstream packaging: nginx/pkg-oss @ ${tag}
+        - Flavor: ${flavor}
+        
+        Artifacts include .deb packages for all built distros plus SHA256SUMS.
+        EOF
+        )
+          gh release create "$reltag" --title "$title" --notes "$notes"
+        fi
+
+        gh release upload "$reltag" dist/**/*.deb dist/SHA256SUMS --clobber
