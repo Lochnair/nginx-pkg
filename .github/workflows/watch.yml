@@ -1,0 +1,51 @@
+name: Watch NGINX (stable & mainline)
+
+on:
+  schedule:
+    - cron: "23 2 */2 * *"   # check every 30 minutes
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # for git-auto-commit to push
+
+env:
+  VERSION_DIR: .meta
+
+jobs:
+  watch:
+    name: Update ${{ matrix.flavor }} tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - flavor: stable
+            url: https://version.nginx.com/nginx/stable
+            file: .meta/nginx-stable.txt
+          - flavor: mainline
+            url: https://version.nginx.com/nginx/mainline
+            file: .meta/nginx-mainline.txt
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch ${{ matrix.flavor }} tag
+        id: fetch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "${{ matrix.file }}")"
+          TAG=$(curl -fsSL "${{ matrix.url }}" | tr -d '\n' | xargs)
+          [ -n "$TAG" ] || { echo "Empty tag from endpoint"; exit 0; }
+          printf "%s\n" "$TAG" > "${{ matrix.file }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Wrote $TAG to ${{ matrix.file }}"
+
+      - name: Commit if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          file_pattern: ${{ matrix.file }}
+          commit_message: |
+            chore(nginx): ${{
+              matrix.flavor
+            }} → ${{ steps.fetch.outputs.tag }}"
