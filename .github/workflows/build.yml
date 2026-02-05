@@ -82,6 +82,7 @@ jobs:
             ca-certificates curl git jq make build-essential devscripts equivs \
             dpkg-dev debhelper quilt lsb-release xsltproc file libxml2-utils
           update-ca-certificates
+          rustup default stable
 
       - uses: actions/checkout@v6
 
