@@ -29,7 +29,7 @@ jobs:
             url: https://version.nginx.com/nginx/mainline
             file: .meta/nginx-mainline.txt
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 

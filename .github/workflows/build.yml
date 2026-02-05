@@ -36,7 +36,7 @@ jobs:
     outputs:
       flavor: ${{ steps.out.outputs.flavor }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: out
         shell: bash
         run: |
@@ -83,7 +83,7 @@ jobs:
             dpkg-dev debhelper quilt lsb-release xsltproc file libxml2-utils
           update-ca-certificates
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve tag and series
         id: ver
