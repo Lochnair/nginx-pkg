@@ -167,7 +167,7 @@ jobs:
           find debuild-* -name "*.deb" -print -exec cp -v {} ../../out/ \;
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nginx-${{ env.FLAVOR }}-${{ steps.ver.outputs.tag }}-${{ matrix.distro }}
           path: out/
@@ -181,7 +181,7 @@ jobs:
     steps:
       - name: Download all build artifacts
       # This grabs every artifact from all matrix rows into ./dist/<artifact-name>
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: dist
   
