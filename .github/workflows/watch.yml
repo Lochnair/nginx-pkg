@@ -46,7 +46,7 @@ jobs:
           echo "Wrote $TAG to ${{ matrix.file }}"
 
       - name: Commit if changed
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           file_pattern: ${{ matrix.file }}
           commit_message: |
